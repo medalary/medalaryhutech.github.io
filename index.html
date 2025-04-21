@@ -25,7 +25,7 @@
     </div>
   </div>
 
-  <!-- Attendance Table -->
+  <!-- Table -->
   <div class="overflow-x-auto">
     <table class="table-auto border-collapse w-full text-center" id="attendanceTable">
       <thead>
@@ -162,7 +162,7 @@
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = getFileName('Thongke', 'csv');
+      link.download = getFileName('Smart Lockers', 'csv');
       link.click();
     });
 
@@ -170,17 +170,17 @@
     document.getElementById('exportExcel').addEventListener('click', () => {
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.table_to_sheet(attendanceTable);
-      XLSX.utils.book_append_sheet(wb, ws, 'Attendance');
-      XLSX.writeFile(wb, getFileName('attendance', 'xlsx'));
+      XLSX.utils.book_append_sheet(wb, ws, 'Smart Lockers');
+      XLSX.writeFile(wb, getFileName('Smart Lockers', 'xlsx'));
     });
 
     // Export PDF – fix dùng window.jspdf.jsPDF
     document.getElementById('exportPDF').addEventListener('click', () => {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF('l', 'pt', 'a4');
-      doc.text('Attendance Table', 40, 30);
+      doc.text('Smart Lockers', 40, 30);
       doc.autoTable({ html: '#attendanceTable', startY: 50 });
-      doc.save(getFileName('attendance', 'pdf'));
+      doc.save(getFileName('Smart Lockers', 'pdf'));
     });
   </script>
 </body>
