@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Attendance Tracker</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+
+  <!-- Firebase SDK v8 -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+</head>
+<body class="bg-white p-6">
+  <!-- Header -->
+  <div class="flex items-center justify-between border-b pb-4 mb-4">
+    <div class="flex items-center gap-4">
+      <img src="https://media.loveitopcdn.com/3807/logo-hutech-1.png" alt="Logo" width="200" height="200" class="object-contain" />
+      <div class="text-2xl font-semi">Pham Lu Huy Chuong - Tran Minh Thien</div>
+    </div>
+  </div>
+
+  <!-- Attendance Table -->
+  <div class="overflow-x-auto">
+    <table class="table-auto border-collapse w-full text-center" id="attendanceTable">
+      <thead>
+        <tr>
+          <th class="border p-2">Time</th>
+        </tr>
+      </thead>
+      <tbody id="timeRows"></tbody>
+    </table>
+  </div>
+
+  <!-- Controls -->
+  <div class="flex items-center justify-between mt-6">
+    <div class="flex items-center gap-2">
+      <label for="month" class="font-medium">Choose the month:</label>
+      <input type="month" id="month" name="month" class="border px-2 py-1 rounded">
+      <button id="viewBtn" class="bg-blue-500 text-white px-4 py-1 rounded hover:bg-blue-600">View</button>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="exportCSV" class="bg-green-500 text-white px-6 py-2 rounded hover:bg-green-600">Export CSV</button>
+      <button id="exportExcel" class="bg-yellow-500 text-white px-6 py-2 rounded hover:bg-yellow-600">Export Excel</button>
+      <button id="exportPDF" class="bg-red-500 text-white px-6 py-2 rounded hover:bg-red-600">Export PDF</button>
+    </div>
+  </div>
+
+  <!-- Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+  <!-- Script -->
+  <script>
+    const attendanceTable = document.getElementById('attendanceTable');
+    const timeRows = document.getElementById('timeRows');
+    const viewBtn = document.getElementById('viewBtn');
+    const monthInput = document.getElementById('month');
+    let currentMonthStr = '';
+
+    // Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyDt6TLGgKVXxeQ5D2n8l4T2DrVcbuejQbM",
+      authDomain: "smart-locker-71697.firebaseapp.com",
+      databaseURL: "https://smart-locker-71697-default-rtdb.firebaseio.com",
+      projectId: "smart-locker-71697",
+      storageBucket: "smart-locker-71697.firebasestorage.app",
+      messagingSenderId: "27078403422",
+      appId: "1:27078403422:web:93a6405ab5a4d917c21bcf",
+      measurementId: "G-WRBS9RQ535"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    function generateDays(year, month) {
+      const headerRow = attendanceTable.querySelector('thead tr');
+      headerRow.innerHTML = '<th class="bg-yellow-200 border-black border p-2">Time</th>';
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      for (let day = 1; day <= lastDay; day++) {
+        const date = new Date(year, month, day);
+        const weekday = date.toLocaleString('en-US', { weekday: 'short' });
+        const formatted = `${String(day).padStart(2, '0')}/${String(month + 1).padStart(2, '0')}<br>${weekday}`;
+        const th = document.createElement('th');
+        th.className = 'bg-yellow-200 border-black border p-2';
+        th.innerHTML = formatted;
+        headerRow.appendChild(th);
+      }
+    }
+
+    function generateTimeRows(year, month) {
+      timeRows.innerHTML = '';
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      for (let hour = 8; hour <= 22; hour++) {
+        const tr = document.createElement('tr');
+        const tdTime = document.createElement('td');
+        tdTime.className = 'border-black border p-2 font-medium';
+        tdTime.textContent = `${hour}h`;
+        tr.appendChild(tdTime);
+        for (let i = 0; i < lastDay; i++) {
+          const td = document.createElement('td');
+          td.className = 'border-black border p-2';
+          tr.appendChild(td);
+        }
+        timeRows.appendChild(tr);
+      }
+    }
+
+    function loadAttendanceFromFirebase(monthStr) {
+      const [year, month] = monthStr.split('-');
+      const refPath = `attendance/${year}-${month}`;
+      const monthRef = database.ref(refPath);
+
+      monthRef.once('value').then(snapshot => {
+        const data = snapshot.val();
+        if (!data) return;
+
+        [...timeRows.children].forEach((row, hourIndex) => {
+          const hour = hourIndex + 8;
+          const hourStr = String(hour).padStart(2, '0'); // Fix: match "08", "09" keys
+
+          [...row.children].forEach((cell, cellIndex) => {
+            if (cellIndex === 0) return;
+            const day = String(cellIndex).padStart(2, '0');
+            if (data[day] && data[day][hourStr]) {
+              cell.textContent = data[day][hourStr];
+            }
+          });
+        });
+      });
+    }
+
+    function updateTableByMonth(monthStr) {
+      const [year, month] = monthStr.split('-').map(Number);
+      currentMonthStr = monthStr;
+      generateDays(year, month - 1);
+      generateTimeRows(year, month - 1);
+      loadAttendanceFromFirebase(monthStr);
+    }
+
+    viewBtn.addEventListener('click', () => {
+      const selectedMonth = monthInput.value;
+      if (selectedMonth) {
+        updateTableByMonth(selectedMonth);
+      }
+    });
+
+    const today = new Date();
+    const defaultMonth = today.toISOString().substring(0, 7);
+    monthInput.value = defaultMonth;
+    updateTableByMonth(defaultMonth);
+
+    function getFileName(prefix, ext) {
+      const [year, month] = currentMonthStr.split('-');
+      return `${prefix}_${month}-${year}.${ext}`;
+    }
+
+    document.getElementById('exportCSV').addEventListener('click', () => {
+      const rows = [...attendanceTable.rows];
+      const csv = rows.map(row => [...row.cells].map(cell => cell.innerText.replace(/\n/g, ' ')).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = getFileName('Thongke', 'csv');
+      link.click();
+    });
+
+    document.getElementById('exportExcel').addEventListener('click', () => {
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.table_to_sheet(attendanceTable);
+      XLSX.utils.book_append_sheet(wb, ws, 'Attendance');
+      XLSX.writeFile(wb, getFileName('attendance', 'xlsx'));
+    });
+
+    document.getElementById('exportPDF').addEventListener('click', () => {
+      import('jspdf').then(jsPDF => {
+        const doc = new jsPDF.jsPDF('l', 'pt', 'a4');
+        doc.text('Attendance Table', 40, 30);
+        doc.autoTable({ html: '#attendanceTable', startY: 50 });
+        doc.save(getFileName('attendance', 'pdf'));
+      });
+    });
+  </script>
+</body>
+</html>
