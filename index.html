@@ -25,7 +25,7 @@
     </div>
   </div>
 
-  <!-- Table -->
+  <!-- Attendance Table -->
   <div class="overflow-x-auto">
     <table class="table-auto border-collapse w-full text-center" id="attendanceTable">
       <thead>
@@ -51,7 +51,6 @@
     </div>
   </div>
 
-  <!-- Script -->
   <script>
     const attendanceTable = document.getElementById('attendanceTable');
     const timeRows = document.getElementById('timeRows');
@@ -166,15 +165,38 @@
       link.click();
     });
 
-    // Export Excel
+    // ✅ Export Excel with custom styling
     document.getElementById('exportExcel').addEventListener('click', () => {
       const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.table_to_sheet(attendanceTable);
-      XLSX.utils.book_append_sheet(wb, ws, 'Smart Lockers');
+      const ws_data = [];
+
+      // Convert table to array of arrays
+      const rows = attendanceTable.querySelectorAll('tr');
+      rows.forEach(row => {
+        const rowData = [];
+        row.querySelectorAll('th, td').forEach(cell => {
+          rowData.push(cell.innerText.replace(/\n/g, ' '));
+        });
+        ws_data.push(rowData);
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet(ws_data);
+
+      // Auto column width
+      const colWidths = ws_data[0].map((_, colIdx) => {
+        const maxLen = ws_data.reduce((max, row) => {
+          const val = row[colIdx] || '';
+          return Math.max(max, val.toString().length);
+        }, 10);
+        return { wch: maxLen + 2 };
+      });
+      ws['!cols'] = colWidths;
+
+      XLSX.utils.book_append_sheet(wb, ws, 'Attendance');
       XLSX.writeFile(wb, getFileName('Smart Lockers', 'xlsx'));
     });
 
-    // Export PDF – fix dùng window.jspdf.jsPDF
+    // Export PDF
     document.getElementById('exportPDF').addEventListener('click', () => {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF('l', 'pt', 'a4');
