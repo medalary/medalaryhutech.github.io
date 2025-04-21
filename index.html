@@ -11,7 +11,7 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
   <!-- Export libraries -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://unpkg.com/xlsx-style@0.8.13/dist/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 </head>
@@ -25,7 +25,7 @@
     </div>
   </div>
 
-  <!-- Attendance Table -->
+  <!-- Table -->
   <div class="overflow-x-auto">
     <table class="table-auto border-collapse w-full text-center" id="attendanceTable">
       <thead>
@@ -51,6 +51,7 @@
     </div>
   </div>
 
+  <!-- Script -->
   <script>
     const attendanceTable = document.getElementById('attendanceTable');
     const timeRows = document.getElementById('timeRows');
@@ -58,7 +59,6 @@
     const monthInput = document.getElementById('month');
     let currentMonthStr = '';
 
-    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyDt6TLGgKVXxeQ5D2n8l4T2DrVcbuejQbM",
       authDomain: "smart-locker-71697.firebaseapp.com",
@@ -117,7 +117,6 @@
         [...timeRows.children].forEach((row, hourIndex) => {
           const hour = hourIndex + 8;
           const hourStr = String(hour).padStart(2, '0');
-
           [...row.children].forEach((cell, cellIndex) => {
             if (cellIndex === 0) return;
             const day = String(cellIndex).padStart(2, '0');
@@ -161,16 +160,15 @@
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = getFileName('Smart Lockers', 'csv');
+      link.download = getFileName('Smart_Lockers', 'csv');
       link.click();
     });
 
-    // ✅ Export Excel with custom styling
+    // ✅ Export Excel (viền, đậm, màu nền, căn chỉnh)
     document.getElementById('exportExcel').addEventListener('click', () => {
       const wb = XLSX.utils.book_new();
       const ws_data = [];
 
-      // Convert table to array of arrays
       const rows = attendanceTable.querySelectorAll('tr');
       rows.forEach(row => {
         const rowData = [];
@@ -182,18 +180,34 @@
 
       const ws = XLSX.utils.aoa_to_sheet(ws_data);
 
-      // Auto column width
-      const colWidths = ws_data[0].map((_, colIdx) => {
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      for (let R = range.s.r; R <= range.e.r; ++R) {
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+          const cellRef = XLSX.utils.encode_cell({ r: R, c: C });
+          if (!ws[cellRef]) continue;
+          ws[cellRef].s = {
+            font: { bold: R === 0 },
+            fill: R === 0 ? { fgColor: { rgb: "FFF9C4" } } : undefined,
+            border: {
+              top: { style: 'thin', color: { rgb: "000000" } },
+              bottom: { style: 'thin', color: { rgb: "000000" } },
+              left: { style: 'thin', color: { rgb: "000000" } },
+              right: { style: 'thin', color: { rgb: "000000" } }
+            }
+          };
+        }
+      }
+
+      ws['!cols'] = ws_data[0].map((_, colIdx) => {
         const maxLen = ws_data.reduce((max, row) => {
           const val = row[colIdx] || '';
           return Math.max(max, val.toString().length);
         }, 10);
         return { wch: maxLen + 2 };
       });
-      ws['!cols'] = colWidths;
 
       XLSX.utils.book_append_sheet(wb, ws, 'Attendance');
-      XLSX.writeFile(wb, getFileName('Smart Lockers', 'xlsx'));
+      XLSX.writeFile(wb, getFileName('Smart_Lockers', 'xlsx'));
     });
 
     // Export PDF
@@ -202,7 +216,7 @@
       const doc = new jsPDF('l', 'pt', 'a4');
       doc.text('Smart Lockers', 40, 30);
       doc.autoTable({ html: '#attendanceTable', startY: 50 });
-      doc.save(getFileName('Smart Lockers', 'pdf'));
+      doc.save(getFileName('Smart_Lockers', 'pdf'));
     });
   </script>
 </body>
