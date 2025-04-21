@@ -2,83 +2,233 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Export Excel Test</title>
-  <script src="https://unpkg.com/xlsx-style@0.8.13/dist/xlsx.full.min.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Lockers</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+
+  <!-- Firebase SDK v8 -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+  <!-- Export libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 </head>
-<body>
-  <h2>Export Excel Demo</h2>
-  <table id="attendanceTable" border="1">
-    <thead>
-      <tr>
-        <th>Time</th>
-        <th>01/04</th>
-        <th>02/04</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>8h</td>
-        <td>10</td>
-        <td>12</td>
-      </tr>
-      <tr>
-        <td>9h</td>
-        <td>9</td>
-        <td>11</td>
-      </tr>
-    </tbody>
-  </table>
+<body class="bg-white p-6">
 
-  <br />
-  <button onclick="exportExcel()">Export Excel</button>
+  <!-- Header -->
+  <div class="flex items-center justify-between border-b pb-4 mb-4">
+    <div class="flex items-center gap-4">
+      <img src="https://media.loveitopcdn.com/3807/logo-hutech-1.png" alt="Logo" width="200" height="200" class="object-contain" />
+      <div class="text-2xl font-semi">Pham Lu Huy Chuong - Tran Minh Thien</div>
+    </div>
+  </div>
 
+  <!-- Table -->
+  <div class="overflow-x-auto">
+    <table class="table-auto border-collapse w-full text-center" id="attendanceTable">
+      <thead>
+        <tr>
+          <th class="border p-2">Time</th>
+        </tr>
+      </thead>
+      <tbody id="timeRows"></tbody>
+    </table>
+  </div>
+
+  <!-- Controls -->
+  <div class="flex items-center justify-between mt-6">
+    <div class="flex items-center gap-2">
+      <label for="month" class="font-medium">Choose the month:</label>
+      <input type="month" id="month" name="month" class="border px-2 py-1 rounded">
+      <button id="viewBtn" class="bg-blue-500 text-white px-4 py-1 rounded hover:bg-blue-600">View</button>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="exportCSV" class="bg-green-500 text-white px-6 py-2 rounded hover:bg-green-600">Export CSV</button>
+      <button id="exportExcel" class="bg-yellow-500 text-white px-6 py-2 rounded hover:bg-yellow-600">Export Excel</button>
+      <button id="exportPDF" class="bg-red-500 text-white px-6 py-2 rounded hover:bg-red-600">Export PDF</button>
+    </div>
+  </div>
+
+  <!-- Script -->
   <script>
-    function exportExcel() {
+    const attendanceTable = document.getElementById('attendanceTable');
+    const timeRows = document.getElementById('timeRows');
+    const viewBtn = document.getElementById('viewBtn');
+    const monthInput = document.getElementById('month');
+    let currentMonthStr = '';
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDt6TLGgKVXxeQ5D2n8l4T2DrVcbuejQbM",
+      authDomain: "smart-locker-71697.firebaseapp.com",
+      databaseURL: "https://smart-locker-71697-default-rtdb.firebaseio.com",
+      projectId: "smart-locker-71697",
+      storageBucket: "smart-locker-71697.appspot.com",
+      messagingSenderId: "27078403422",
+      appId: "1:27078403422:web:93a6405ab5a4d917c21bcf",
+      measurementId: "G-WRBS9RQ535"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    function generateDays(year, month) {
+      const headerRow = attendanceTable.querySelector('thead tr');
+      headerRow.innerHTML = '<th class="bg-yellow-200 border-black border p-2">Time</th>';
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      for (let day = 1; day <= lastDay; day++) {
+        const date = new Date(year, month, day);
+        const weekday = date.toLocaleString('en-US', { weekday: 'short' });
+        const formatted = `${String(day).padStart(2, '0')}/${String(month + 1).padStart(2, '0')}<br>${weekday}`;
+        const th = document.createElement('th');
+        th.className = 'bg-yellow-200 border-black border p-2';
+        th.innerHTML = formatted;
+        headerRow.appendChild(th);
+      }
+    }
+
+    function generateTimeRows(year, month) {
+      timeRows.innerHTML = '';
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      for (let hour = 8; hour <= 22; hour++) {
+        const tr = document.createElement('tr');
+        const tdTime = document.createElement('td');
+        tdTime.className = 'border-black border p-2 font-medium';
+        tdTime.textContent = `${hour}h`;
+        tr.appendChild(tdTime);
+        for (let i = 0; i < lastDay; i++) {
+          const td = document.createElement('td');
+          td.className = 'border-black border p-2';
+          tr.appendChild(td);
+        }
+        timeRows.appendChild(tr);
+      }
+    }
+
+    function loadAttendanceFromFirebase(monthStr) {
+      const [year, month] = monthStr.split('-');
+      const refPath = `attendance/${year}-${month}`;
+      const monthRef = database.ref(refPath);
+
+      monthRef.once('value').then(snapshot => {
+        const data = snapshot.val();
+        if (!data) return;
+
+        [...timeRows.children].forEach((row, hourIndex) => {
+          const hour = hourIndex + 8;
+          const hourStr = String(hour).padStart(2, '0');
+          [...row.children].forEach((cell, cellIndex) => {
+            if (cellIndex === 0) return;
+            const day = String(cellIndex).padStart(2, '0');
+            if (data[day] && data[day][hourStr]) {
+              cell.textContent = data[day][hourStr];
+            }
+          });
+        });
+      });
+    }
+
+    function updateTableByMonth(monthStr) {
+      const [year, month] = monthStr.split('-').map(Number);
+      currentMonthStr = monthStr;
+      generateDays(year, month - 1);
+      generateTimeRows(year, month - 1);
+      loadAttendanceFromFirebase(monthStr);
+    }
+
+    viewBtn.addEventListener('click', () => {
+      const selectedMonth = monthInput.value;
+      if (selectedMonth) {
+        updateTableByMonth(selectedMonth);
+      }
+    });
+
+    const today = new Date();
+    const defaultMonth = today.toISOString().substring(0, 7);
+    monthInput.value = defaultMonth;
+    updateTableByMonth(defaultMonth);
+
+    function getFileName(prefix, ext) {
+      const [year, month] = currentMonthStr.split('-');
+      return `${prefix}_${month}-${year}.${ext}`;
+    }
+
+    // Export CSV
+    document.getElementById('exportCSV').addEventListener('click', () => {
+      const rows = [...attendanceTable.rows];
+      const csv = rows.map(row => [...row.cells].map(cell => cell.innerText.replace(/\n/g, ' ')).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = getFileName('Smart_Lockers', 'csv');
+      link.click();
+    });
+
+    // Export Excel 
+    document.getElementById('exportExcel').addEventListener('click', () => {
       const wb = XLSX.utils.book_new();
       const ws_data = [];
 
-      const table = document.getElementById('attendanceTable');
-      const rows = table.querySelectorAll('tr');
-
+      const rows = attendanceTable.querySelectorAll('tr');
       rows.forEach(row => {
         const rowData = [];
         row.querySelectorAll('th, td').forEach(cell => {
-          rowData.push(cell.innerText.trim());
+          rowData.push(cell.innerText.replace(/\n/g, ' '));
         });
         ws_data.push(rowData);
       });
 
       const ws = XLSX.utils.aoa_to_sheet(ws_data);
 
-      const range = XLSX.utils.decode_range(ws['!ref']);
-      for (let R = range.s.r; R <= range.e.r; ++R) {
-        for (let C = range.s.c; C <= range.e.c; ++C) {
-          const cellRef = XLSX.utils.encode_cell({ r: R, c: C });
-          if (!ws[cellRef]) continue;
-          ws[cellRef].s = {
-            font: { bold: R === 0 },
-            fill: R === 0 ? { fgColor: { rgb: "FFF9C4" } } : undefined,
-            border: {
-              top: { style: 'thin', color: { rgb: "000000" } },
-              bottom: { style: 'thin', color: { rgb: "000000" } },
-              left: { style: 'thin', color: { rgb: "000000" } },
-              right: { style: 'thin', color: { rgb: "000000" } }
-            }
-          };
-        }
-      }
-
-      // Auto column width
-      ws['!cols'] = ws_data[0].map((_, i) => {
+      // Auto fit
+      ws['!cols'] = ws_data[0].map((_, colIdx) => {
         const maxLen = ws_data.reduce((max, row) => {
-          return Math.max(max, (row[i] || '').length);
+          const val = row[colIdx] || '';
+          return Math.max(max, val.toString().length);
         }, 10);
         return { wch: maxLen + 2 };
       });
 
-      XLSX.utils.book_append_sheet(wb, ws, "Attendance");
-      XLSX.writeFile(wb, "attendance.xlsx");
-    }
+      XLSX.utils.book_append_sheet(wb, ws, 'Attendance');
+      XLSX.writeFile(wb, getFileName('Smart_Lockers', 'xlsx'));
+    });
+
+    // Export PDF
+    document.getElementById('exportPDF').addEventListener('click', () => {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF('l', 'pt', 'a4'); 
+      const title = 'Smart Lockers';
+      const titleFontSize = 24; 
+      doc.setFontSize(titleFontSize);
+      doc.setFont(undefined, 'bold'); 
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const titleWidth = doc.getTextWidth(title);
+      const xTitle = (pageWidth - titleWidth) / 2;
+      doc.text(title, xTitle, 40); 
+
+      doc.autoTable({
+        html: '#attendanceTable',
+        startY: 60,
+        theme: 'grid',
+        styles: {
+          fontSize: 8,
+          cellPadding: 3,
+          halign: 'center',
+          valign: 'middle',
+          lineColor: 0,
+          lineWidth: 0.2
+        },
+        headStyles: {
+          fillColor: [255, 249, 196],
+          textColor: 0,
+          fontStyle: 'bold'
+        },
+        margin: { left: 20, right: 20 },
+        tableWidth: 'auto'
+      });
+      doc.save(getFileName('Smart_Lockers', 'pdf'));
+    });
   </script>
 </body>
 </html>
